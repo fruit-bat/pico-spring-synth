@@ -44,7 +44,7 @@ typedef struct {
 // Patch flags
 #define SS_PATCH_ONE_SHOT 1     // Note off is ignored (drums, most percussion)
 
-typedef struct {
+typedef struct SsPatch {
     const char *name;
     uint8_t count;              // Partials used, 1..SS_MAX_PARTIALS
     uint8_t flags;              // SS_PATCH_*
@@ -68,6 +68,10 @@ typedef struct {
     float noise;                // Noise burst into the partials (amplitude reached)
     float noise_out;            // Noise burst straight to the output (high passed)
     float noise_ms;             // Noise burst time constant (ms)
+    float knock;                // Unpitched thump at the strike (low passed noise, whatever the
+                                // note: the case and soundboard of a piano); amplitude, 0 = none
+    float knock_hz;             // Its low pass corner (Hz)
+    float knock_ms;             // Its decay time constant (ms)
     float glide;                // Pitch starts at this ratio and slides to 1 (0 or 1 = none)
     float glide_ms;             // Glide time constant (ms)
     float vibrato;              // Built-in vibrato depth (cents), added to the mod wheel's
@@ -75,6 +79,13 @@ typedef struct {
     float vib_delay;            // Vibrato fades in over this time (s)
     float pan_spread;           // Low keys left, high keys right: 0..1
     float hz;                   // Fixed pitch (drums); 0 = from the key
+    // Blend into another patch towards the top: below key blend_lo this
+    // patch sounds, above blend_hi `upper` does, and in between every
+    // number (partial levels and decays, filters, gain...) is interpolated
+    // per key, so there is no seam. `upper` must have the same count and
+    // partial ratios. NULL = no blend.
+    const struct SsPatch *upper;
+    uint8_t blend_lo, blend_hi;
 } SsPatch;
 
 // Drum kit entry for one key on the drum channel

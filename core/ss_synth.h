@@ -122,6 +122,11 @@ typedef struct {
     float noise_prev;       // High pass state
     float noise_lp;         // Low pass coefficient (cutoff follows the note)
     float noise_y;          // Low pass state
+    float knock_env;        // Knock level now (0 = none)
+    float knock_decay;      // Per sample
+    float knock_floor;      // It stops below this (40 dB under its start)
+    float knock_c;          // Two pole low pass coefficient
+    float knock_y1, knock_y2;   // Low pass state
     uint32_t noise_seed;
     float energy;           // Sum of |z|^2 over the springs, last block
 } SsString;

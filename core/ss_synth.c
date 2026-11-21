@@ -276,6 +276,14 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
         const float fc = ss_clampf(20.0f * freq, 600.0f, 16000.0f);
         str->noise_lp = 1.0f - ss_expf(-TWO_PI * fc / fs);
     }
+    if (pt->knock > 0.0f) {
+        const float kc = 1.0f - ss_expf(-TWO_PI * (pt->knock_hz > 0.0f ? pt->knock_hz : 200.0f) / fs);
+        str->knock_c = kc;
+        // Scaled so the low passed noise has about the knock's amplitude
+        str->knock_env = pt->knock * pt->gain * ss_exp2f(lv * vel_curve) * sqrtf(3.0f / kc);
+        str->knock_floor = 0.01f * str->knock_env;
+        str->knock_decay = ss_expf(-1.0f / ((pt->knock_ms > 0.0f ? pt->knock_ms : 30.0f) * 0.001f * fs));
+    }
     if (glide != 1.0f) {
         str->glide = glide;
         str->glide_k = ss_expf(-(float)B / ((pt->glide_ms > 0.0f ? pt->glide_ms : 20.0f) * 0.001f * fs));
@@ -435,11 +443,41 @@ static void SS_RAM_FUNC(choke_group)(SsSynth *s, uint8_t chan, uint8_t group, co
     }
 }
 
+// The patch a key actually plays: pt itself, its upper patch, or (between
+// blend_lo and blend_hi) a per-key interpolation of the two, built in *tmp.
+static const SsPatch *SS_RAM_FUNC(patch_at_key)(const SsPatch *pt, uint8_t key, SsPatch *tmp) {
+    const SsPatch *up = pt->upper;
+    if (!up || key <= pt->blend_lo) return pt;
+    if (key >= pt->blend_hi) return up;
+    const float w = (float)(key - pt->blend_lo) / (float)(pt->blend_hi - pt->blend_lo);
+#define LERP(f) tmp->f = pt->f + (up->f - pt->f) * w
+    *tmp = *pt;
+    LERP(gain); LERP(decay_track); LERP(release); LERP(restrike_damp); LERP(tilt); LERP(vel_curve);
+    LERP(bright); LERP(inharm); LERP(inharm_track); LERP(cutoff_hz); LERP(cutoff_vel); LERP(body_hz);
+    LERP(noise); LERP(noise_out); LERP(noise_ms); LERP(knock); LERP(knock_hz); LERP(knock_ms);
+    LERP(vibrato); LERP(vib_rate); LERP(vib_delay); LERP(pan_spread);
+    for (uint32_t j = 0; j < pt->count; ++j) {
+        LERP(p[j].ratio); LERP(p[j].gain); LERP(p[j].t60); LERP(p[j].drive);
+    }
+#undef LERP
+    // The hammer cutoff is interpolated as 1 / cutoff, since 0 means no
+    // low pass (an infinite cutoff). (The soundboard corner's 0 is 0 Hz, so
+    // its plain interpolation is right.)
+    const float inv_lo = pt->cutoff_hz > 0.0f ? 1.0f / pt->cutoff_hz : 0.0f;
+    const float inv_up = up->cutoff_hz > 0.0f ? 1.0f / up->cutoff_hz : 0.0f;
+    const float inv = inv_lo + (inv_up - inv_lo) * w;
+    tmp->cutoff_hz = inv > 0.0f ? 1.0f / inv : 0.0f;
+    return tmp;
+}
+
 // See ss_synth.h.
 void SS_RAM_FUNC(ss_synth_note_on_patch)(SsSynth *s, uint8_t chan, uint8_t key, uint8_t vel,
                                          const SsPatch *pt, float hz, float pan, uint8_t group) {
     if (chan >= SS_MIDI_CHANNELS || key > 127 || !pt || vel == 0) return;
     const float freq = hz > 0.0f ? hz : 440.0f * ss_exp2f(((float)key - 69.0f) * (1.0f / 12.0f));
+    // What this key plays (pt still identifies the string's patch)
+    SsPatch blend;
+    const SsPatch *xp = patch_at_key(pt, key, &blend);
 
     SsString *str = NULL;
     const uint8_t mapped = s->key_string[chan][key];
@@ -456,13 +494,13 @@ void SS_RAM_FUNC(ss_synth_note_on_patch)(SsSynth *s, uint8_t chan, uint8_t key, 
     if (str) {
         // Strike the ringing string again
         str->state = SS_STR_HELD;
-        s->partials += string_excite(s, str, pt, freq, vel);
+        s->partials += string_excite(s, str, xp, freq, vel);
         ++s->stats.restrikes;
     } else {
         // Count the partials that will sound, to make room for them
         uint32_t need = 0;
-        for (uint32_t j = 0; j < pt->count; ++j) {
-            const float hz = pt->p[j].ratio < 0.0f ? -pt->p[j].ratio : freq * pt->p[j].ratio;
+        for (uint32_t j = 0; j < xp->count; ++j) {
+            const float hz = xp->p[j].ratio < 0.0f ? -xp->p[j].ratio : freq * xp->p[j].ratio;
             if (TWO_PI * hz / s->sample_rate <= note_w_max(s)) ++need;
         }
         str = string_alloc(s, need);
@@ -475,14 +513,14 @@ void SS_RAM_FUNC(ss_synth_note_on_patch)(SsSynth *s, uint8_t chan, uint8_t key, 
         str->group = group;
         str->glide = 1.0f;
         str->pitch = 1.0f;
-        str->vib_depth = pt->vibrato * (1.0f / 1200.0f);
-        str->vib_step = (pt->vib_rate > 0.0f ? pt->vib_rate : 5.5f) * (float)B / s->sample_rate;
-        str->vib_env_step = pt->vib_delay > 0.0f ? (float)B / (pt->vib_delay * s->sample_rate) : 1.0f;
+        str->vib_depth = xp->vibrato * (1.0f / 1200.0f);
+        str->vib_step = (xp->vib_rate > 0.0f ? xp->vib_rate : 5.5f) * (float)B / s->sample_rate;
+        str->vib_env_step = xp->vib_delay > 0.0f ? (float)B / (xp->vib_delay * s->sample_rate) : 1.0f;
         str->vib_phase = (float)(key % 12) * (1.0f / 12.0f); // Strings of a chord do not vibrate in step
-        str->pan = ss_clampf(pan + pt->pan_spread * ((float)key - 64.0f) * (1.0f / 48.0f), -1.0f, 1.0f);
+        str->pan = ss_clampf(pan + xp->pan_spread * ((float)key - 64.0f) * (1.0f / 48.0f), -1.0f, 1.0f);
         s->noise_seed = s->noise_seed * 69069u + 12345u;
         str->noise_seed = s->noise_seed;
-        s->partials += string_excite(s, str, pt, freq, vel);
+        s->partials += string_excite(s, str, xp, freq, vel);
         str->mapped = true;
         s->key_string[chan][key] = (uint8_t)(index + 1);
         ++s->stats.strings_started;
@@ -876,6 +914,22 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
     } else {
         render_springs(str, mono, NULL);
     }
+    if (str->knock_env > 0.0f) {
+        // The knock: noise through two one pole low passes, decaying
+        float env = str->knock_env, y1 = str->knock_y1, y2 = str->knock_y2;
+        const float kc = str->knock_c, kd = str->knock_decay;
+        uint32_t seed = str->noise_seed;
+        for (int k = 0; k < B; ++k) {
+            y1 += kc * (noise_next(&seed) * env - y1);
+            y2 += kc * (y1 - y2);
+            mono[k] += y2;
+            env *= kd;
+        }
+        str->noise_seed = seed;
+        str->knock_y1 = y1;
+        str->knock_y2 = y2;
+        str->knock_env = env < str->knock_floor ? 0.0f : env;
+    }
 
     // 3. Mix: equal power pan, volume ramped over the block
     float sn, cs;
@@ -947,7 +1001,7 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
     }
     str->energy = energy;
     if (str->state == SS_STR_DYING && str->fade == 0) return false; // Faded out
-    return str->count > 0 || str->noise_env > 0.0f;
+    return str->count > 0 || str->noise_env > 0.0f || str->knock_env > 0.0f;
 }
 
 // See ss_synth.h. Clears the buses and divides the strings between the

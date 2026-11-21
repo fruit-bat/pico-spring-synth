@@ -163,6 +163,34 @@ TEST(fixed_frequency_partials) {
     free(buf);
 }
 
+// Amplitude of the spring for the patch's partial j on a fresh string
+static float spring_amp(const SsPatch *pt, uint8_t key, uint32_t j) {
+    setup();
+    ss_synth_note_on_patch(&synth, 0, key, 100, pt, 0, 0, 0);
+    const SsString *x = &synth.strings[synth.key_string[0][key] - 1];
+    for (uint32_t i = 0; i < x->count; ++i) if (x->sp[i].idx == j) return fabsf(x->sp[i].im);
+    return 0.0f;
+}
+
+TEST(key_blend) {
+    const SsPatch *piano = &ss_patches[ss_gm_patch[0]];
+    CHECK(piano->upper != NULL);
+    SsPatch lower = *piano;
+    lower.upper = NULL;
+    const SsPatch *upper = piano->upper;
+    // Partial 2 (the 2nd harmonic): A and B give it different levels
+    const uint8_t lo = piano->blend_lo, hi = piano->blend_hi, mid = (uint8_t)((lo + hi) / 2);
+    CHECK_NEAR(spring_amp(piano, (uint8_t)(lo - 5), 2), spring_amp(&lower, (uint8_t)(lo - 5), 2), 1e-7);
+    CHECK_NEAR(spring_amp(piano, (uint8_t)(hi + 5), 2), spring_amp(upper, (uint8_t)(hi + 5), 2), 1e-7);
+    const float a = spring_amp(&lower, mid, 2), b = spring_amp(upper, mid, 2), m = spring_amp(piano, mid, 2);
+    CHECK(m > fminf(a, b) && m < fmaxf(a, b));
+    // The string still belongs to the program's patch (re-strikes find it)
+    setup();
+    ss_synth_note_on(&synth, 0, mid, 100);
+    ss_synth_note_on(&synth, 0, mid, 100);
+    CHECK_EQ(synth.stats.restrikes, 1);
+}
+
 TEST(steals_the_quietest) {
     setup();
     const SsPatch p = sine(0.1f, 30.0f, 0);
@@ -369,6 +397,7 @@ int main(void) {
     RUN(strings_free_themselves);
     RUN(partials_above_nyquist_are_left_out);
     RUN(fixed_frequency_partials);
+    RUN(key_blend);
     RUN(steals_the_quietest);
     RUN(cost_budget);
     RUN(sustain_pedal);
