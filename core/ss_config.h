@@ -37,7 +37,7 @@
 
 // Most partials (damped springs) one string may have
 #ifndef SS_MAX_PARTIALS
-#define SS_MAX_PARTIALS 8
+#define SS_MAX_PARTIALS 20
 #endif
 
 // The CPU budget: partials + SS_STRING_COST x strings, over all strings
@@ -124,4 +124,4 @@
 #define SS_DRUM_CHANNEL 9
 
 _Static_assert(SS_TOTAL_STRINGS < 255, "string indices are 8 bit (0 = none)");
-_Static_assert(SS_MAX_PARTIALS <= 16, "partial counts are small");
+_Static_assert(SS_MAX_PARTIALS <= 32, "partial counts are small");

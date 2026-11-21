@@ -33,7 +33,9 @@
 #include "ss_config.h"
 
 typedef struct {
-    float ratio;        // Frequency / note frequency (before inharmonicity)
+    float ratio;        // Frequency / note frequency (before inharmonicity); negative: a fixed
+                        // frequency of -ratio Hz whatever the note (a soundboard mode, whose
+                        // t60 is not scaled with pitch)
     float gain;         // Pluck amplitude at full velocity (signed); also the noise excitation weight
     float t60;          // Decay time while held (s, at middle C)
     float drive;        // Sustain amplitude while held, 0 = not driven
@@ -56,7 +58,13 @@ typedef struct {
     float tilt;                 // Level scales by (261.6 / f)^tilt (clamped to +-18 dB)
     float vel_curve;            // Level = (velocity / 127)^vel_curve
     float bright;               // Partial levels scale by (velocity / 127)^(bright log2 ratio)
-    float inharm;               // Stiffness B: ratio n becomes n sqrt(1 + B n^2) (piano)
+    float inharm;               // Stiffness B at middle C: ratio n becomes n sqrt(1 + B n^2) (piano)
+    float inharm_track;         // B scales by (f / 261.6)^inharm_track (short stiff treble strings)
+    float cutoff_hz;            // Hammer low pass on each partial's frequency (2nd order), at full
+                                // velocity; 0 = none
+    float cutoff_vel;           // The cutoff falls by this many octaves per octave of velocity
+    float body_hz;              // Radiation high pass on each partial's frequency (2nd order): a
+                                // soundboard hardly radiates a bass fundamental; 0 = none
     float noise;                // Noise burst into the partials (amplitude reached)
     float noise_out;            // Noise burst straight to the output (high passed)
     float noise_ms;             // Noise burst time constant (ms)

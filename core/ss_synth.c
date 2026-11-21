@@ -190,6 +190,10 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
     // grows with the square root of the burst length)
     const float noise_samples = (pt->noise_ms > 0.0f ? pt->noise_ms : 1.0f) * 0.001f * fs;
     uint32_t added = 0;
+    // Stiffness, hammer and soundboard filters (piano), on absolute frequency
+    const float inharm = pt->inharm > 0.0f ? pt->inharm * ss_exp2f(oct * pt->inharm_track) : 0.0f;
+    const float inv_fc = pt->cutoff_hz > 0.0f ? 1.0f / (pt->cutoff_hz * ss_exp2f(lv * pt->cutoff_vel)) : 0.0f;
+    const float inv_fb = pt->body_hz > 0.0f ? 1.0f / pt->body_hz : 0.0f;
 
     // Struck again while ringing: the hammer or plectrum absorbs some of
     // the motion it meets. Like the strike itself this is a force, so it
@@ -208,17 +212,27 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
 
     for (uint32_t j = 0; j < pt->count; ++j) {
         const SsPartial *pp = &pt->p[j];
-        float ratio = pp->ratio;
-        if (pt->inharm > 0.0f) ratio *= sqrtf(1.0f + pt->inharm * ratio * ratio);
+        const bool fixed = pp->ratio < 0.0f;
+        float ratio = fixed ? -pp->ratio / freq : pp->ratio;
+        if (inharm > 0.0f && !fixed) ratio *= sqrtf(1.0f + inharm * ratio * ratio);
         const float w = TWO_PI * freq * ratio / fs;
         if (w > w_max || w <= 0.0f) continue; // Inaudible or would alias (or nonsense)
         // Brighter with velocity: octaves above the fundamental lose
         // `bright` x the velocity's octaves
         const float bright = ratio > 1.0f ? ss_exp2f(lv * pt->bright * ss_log2f(ratio)) : 1.0f;
-        const float g = amp * bright;
+        float g = amp * bright;
+        const float hz = freq * ratio;
+        if (inv_fc > 0.0f) {
+            const float x = hz * inv_fc, x2 = x * x;
+            g /= sqrtf(1.0f + x2 * x2);
+        }
+        if (inv_fb > 0.0f) {
+            const float y = hz * inv_fb, y2 = y * y;
+            g *= y2 / sqrtf(1.0f + y2 * y2);
+        }
         const float pluck = pp->gain * g;
         const float drive_amp = pp->drive * g;
-        const float t60 = pp->t60 * t60_scale;
+        const float t60 = fixed ? pp->t60 : pp->t60 * t60_scale;
         const float r = ss_t60_to_decay(t60, fs);
         // Release adds the damper's rate to the string's own
         const float r_rel = r * ss_t60_to_decay(r_damp_t60, fs);
@@ -230,8 +244,10 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
             if (str->sp[i].idx == j) { sp = &str->sp[i]; break; }
         }
         if (!sp) {
-            // New spring: skip it if it would never be heard
-            if (fabsf(pluck) < SS_SILENCE && drive == 0.0f && (exc == 0.0f || fabsf(exc) < SS_SILENCE)) continue;
+            // New spring: skip it if it would never be heard, or is 50 dB
+            // below the note's level (the filters leave many such)
+            const float floor = fmaxf(SS_SILENCE, 3e-3f * amp);
+            if (fabsf(pluck) < floor && drive == 0.0f && fabsf(exc) < floor) continue;
             if (str->count >= SS_MAX_PARTIALS) continue;
             sp = &str->sp[str->count++];
             memset(sp, 0, sizeof(*sp));
@@ -446,7 +462,8 @@ void SS_RAM_FUNC(ss_synth_note_on_patch)(SsSynth *s, uint8_t chan, uint8_t key, 
         // Count the partials that will sound, to make room for them
         uint32_t need = 0;
         for (uint32_t j = 0; j < pt->count; ++j) {
-            if (TWO_PI * freq * pt->p[j].ratio / s->sample_rate <= note_w_max(s)) ++need;
+            const float hz = pt->p[j].ratio < 0.0f ? -pt->p[j].ratio : freq * pt->p[j].ratio;
+            if (TWO_PI * hz / s->sample_rate <= note_w_max(s)) ++need;
         }
         str = string_alloc(s, need);
         if (!str) return;
@@ -908,12 +925,20 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
     // 4. Cull springs that are no longer heard. A driven spring of a held
     // key is never culled (it may be starting from rest), nor is anything
     // while a noise burst is still feeding the springs.
-    float energy = 0.0f;
+    // A spring is also dropped once it is 50 dB below the string's
+    // strongest: the string masks it (this is what keeps the many quiet
+    // upper partials of a piano note cheap once the attack has passed).
+    float energy = 0.0f, loudest = 0.0f;
     const bool bursting = str->noise_env > 0.0f && str->noise_scale != 0.0f;
+    for (uint32_t i = 0; i < str->count; ++i) {
+        const SsSpring *p = &str->sp[i];
+        loudest = fmaxf(loudest, p->re * p->re + p->im * p->im);
+    }
+    const float floor2 = fmaxf(SS_SILENCE * SS_SILENCE, 1e-5f * loudest);
     for (uint32_t i = 0; i < str->count;) {
         SsSpring *p = &str->sp[i];
         const float m = p->re * p->re + p->im * p->im;
-        if (!bursting && p->drive == 0.0f && m < SS_SILENCE * SS_SILENCE) {
+        if (!bursting && p->drive == 0.0f && m < floor2) {
             *p = str->sp[--str->count];
             continue;
         }

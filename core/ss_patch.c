@@ -37,12 +37,30 @@ enum {
 };
 
 const SsPatch ss_patches[] = {
+    // Fitted to a sampled grand (FluidR3) note by note. Struck at 1/7 of the
+    // string: partial n gets sin(n pi / 7) / n. Above the 6th, partials are
+    // spaced geometrically up to the 103rd, each standing for the
+    // harmonics up to the next (its level carries their energy, up to 16
+    // of them): this is what makes a bass note bright, its real energy
+    // reaching 3 kHz. On mid and high notes the upper ones fall to the
+    // hammer filter or above 16 kHz and are never started. Unison partners
+    // at 1 and 2 beat and give the two stage decay. The hammer cuts the
+    // highs (more when played softly), the soundboard the bass fundamental;
+    // decay follows each partial's own frequency (T60 about 24 s at A0, 8 s
+    // at C4, 3 s at C7); the strings stiffen towards the treble. Five
+    // fixed soundboard modes give every note the woody knock of the case,
+    // which is the body of a treble note.
     [PIANO] = {
-        .name = "piano", .count = 8,
-        .p = { P(1, .55f, 7, 0), P(1.0009f, .45f, 3.5f, 0), P(2, .85f, 4, 0), P(3, .7f, 3, 0),
-               P(4, .5f, 2.4f, 0), P(5, .33f, 2, 0), P(6, .18f, 1.6f, 0), P(8, -.1f, 1.1f, 0) },
-        .gain = .28f, .decay_track = .8f, .restrike_damp = .6f, .release = .25f, .tilt = .25f, .vel_curve = 1.6f, .bright = 1.0f,
-        .inharm = .0004f, .noise = .08f, .noise_out = .02f, .noise_ms = 2, .pan_spread = .6f,
+        .name = "piano", .count = 20,
+        .p = { P(1, .8f, 8, 0), P(1.0008f, .55f, 2.8f, 0), P(2, .45f, 5.66f, 0), P(2.0019f, .3f, 2.0f, 0),
+               P(3, .6f, 4.62f, 0), P(4, .45f, 4, 0), P(5, .29f, 3.58f, 0), P(6, .23f, 3.27f, 0),
+               P(9, -.36f, 2.67f, 0), P(14, -.12f, 2.14f, 0), P(20, .32f, 1.79f, 0), P(30, .3f, 1.46f, 0),
+               P(46, .25f, 1.18f, 0), P(68, -.21f, .97f, 0), P(103, .14f, .79f, 0),
+               P(-70, .2f, .6f, 0), P(-110, .22f, .6f, 0), P(-190, .18f, .5f, 0), P(-330, .14f, .4f, 0),
+               P(-600, .1f, .3f, 0) },
+        .gain = .2f, .decay_track = .5f, .restrike_damp = .6f, .release = .25f, .tilt = .2f, .vel_curve = 1.6f,
+        .inharm = .0004f, .inharm_track = 1.0f, .cutoff_hz = 5000, .cutoff_vel = 1.0f, .body_hz = 60,
+        .noise = .08f, .noise_out = .02f, .noise_ms = 2, .pan_spread = .6f,
     },
     [EPIANO] = {
         .name = "electric piano", .count = 6,

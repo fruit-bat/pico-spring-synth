@@ -144,12 +144,23 @@ TEST(strings_free_themselves) {
 
 TEST(partials_above_nyquist_are_left_out) {
     setup();
-    ss_synth_note_on(&synth, 0, 60, 127);    // Piano: 8 partials
-    ss_synth_note_on(&synth, 0, 120, 127);   // 8.4 kHz: only the two near 1x fit below 16 kHz
-    const SsString *lo = &synth.strings[synth.key_string[0][60] - 1];
-    const SsString *hi = &synth.strings[synth.key_string[0][120] - 1];
-    CHECK_EQ(lo->count, 8);
-    CHECK(hi->count >= 1 && hi->count <= 2);
+    SsPatch p = { .name = "t", .count = 8, .gain = 1, .vel_curve = 1 };
+    for (int i = 0; i < 8; ++i) p.p[i] = (SsPartial){ (float)(i + 1), 0.1f, 5.0f, 0 };
+    ss_synth_note_on_patch(&synth, 0, 60, 127, &p, 0, 0, 0);    // 262 Hz: all 8 below 16 kHz
+    ss_synth_note_on_patch(&synth, 0, 120, 127, &p, 0, 0, 0);   // 8.4 kHz: only the fundamental
+    CHECK_EQ(synth.strings[synth.key_string[0][60] - 1].count, 8);
+    CHECK_EQ(synth.strings[synth.key_string[0][120] - 1].count, 1);
+}
+
+TEST(fixed_frequency_partials) {
+    setup();
+    float *buf = buffer(1);
+    SsPatch p = { .name = "t", .count = 1, .gain = 1, .vel_curve = 1, .decay_track = 1 };
+    p.p[0] = (SsPartial){ -440.0f, 0.1f, 20.0f, 0 };   // 440 Hz whatever the key
+    ss_synth_note_on_patch(&synth, 0, 30, 127, &p, 0, 0, 0);
+    render(1, buf);
+    CHECK_NEAR(measure_freq(buf + RATE / 4, 3 * RATE / 4), 440.0, 0.05);
+    free(buf);
 }
 
 TEST(steals_the_quietest) {
@@ -357,6 +368,7 @@ int main(void) {
     RUN(restrike_reuses_the_string);
     RUN(strings_free_themselves);
     RUN(partials_above_nyquist_are_left_out);
+    RUN(fixed_frequency_partials);
     RUN(steals_the_quietest);
     RUN(cost_budget);
     RUN(sustain_pedal);

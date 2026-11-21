@@ -73,6 +73,22 @@ kick, snare, toms, hats with choke, cymbals, hand percussion...). Patch levels
 are calibrated against FluidSynth with a GM SoundFont, so GM files keep their
 balance between instruments.
 
+The piano was fitted note by note, A0 to C8, to a sampled grand (FluidR3).
+It uses up to 20 springs:
+
+- partials from the hammer's strike position, spaced sparsely above the 6th
+  harmonic, so bass notes keep their real energy up to about 3 kHz
+- unison pairs, which beat and give the two-stage decay
+- a velocity-dependent hammer filter, and a soundboard filter that weakens the
+  bass fundamental
+- decay set by each partial's frequency, and strings that stiffen towards the
+  treble
+- five fixed-frequency soundboard modes, which give every note the woody knock
+  of the case
+
+Partials more than 50 dB below a string's strongest are dropped, so the
+upper ones cost little once the attack has passed.
+
 Bank select MSB 1 selects **classic**, a replica of the Java `ShoSynQ`: springs at
 1, 1.998 and 4.001 x the note, the same pluck ratios, decay and drive. Driven
 side by side with the original Java code, its held envelope matches to 0.2 dB
