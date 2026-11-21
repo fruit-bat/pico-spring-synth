@@ -30,6 +30,7 @@
 
 _Static_assert((SS_BLOCK_SIZE & (SS_BLOCK_SIZE - 1)) == 0, "SS_BLOCK_SIZE must be a power of 2");
 
+
 // T60 of a choked drum (s)
 #define CHOKE_T60 0.06f
 
@@ -191,14 +192,18 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
     uint32_t added = 0;
 
     // Struck again while ringing: the hammer or plectrum absorbs some of
-    // the motion it meets
+    // the motion it meets. Like the strike itself this is a force, so it
+    // changes the velocity (im) and never the displacement (re): scaling
+    // re as well would be a step in the waveform, a click.
     if (pt->restrike_damp > 0.0f) {
         const float keep = 1.0f - pt->restrike_damp;
+        float e = 0.0f;
         for (uint32_t i = 0; i < str->count; ++i) {
-            str->sp[i].re *= keep;
-            str->sp[i].im *= keep;
+            SsSpring *p = &str->sp[i];
+            p->im *= keep;
+            e += p->re * p->re + p->im * p->im;
         }
-        str->energy *= keep * keep;
+        str->energy = e;
     }
 
     for (uint32_t j = 0; j < pt->count; ++j) {
@@ -249,6 +254,11 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
         // their fast loop and their culling
         str->noise_scale = pt->noise > 0.0f ? sqrtf(6.0f / noise_samples) : 0.0f;
         str->noise_out = pt->noise_out * ss_exp2f(lv * vel_curve) * pt->gain;
+        // The direct noise is band passed around 20x the note (600 Hz ..
+        // 16 kHz): a bright tick on a high note, a dull knock on a low one,
+        // where a broadband tick would stand out from the note as a tap
+        const float fc = ss_clampf(20.0f * freq, 600.0f, 16000.0f);
+        str->noise_lp = 1.0f - ss_expf(-TWO_PI * fc / fs);
     }
     if (glide != 1.0f) {
         str->glide = glide;
@@ -820,6 +830,7 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
     if (str->dirty || pitch != str->pitch) string_coeffs(str, pitch);
     if (str->state <= SS_STR_SUSTAINED) string_drive(str, ch->drive_scale);
 
+
     // 2. Springs (and the noise burst)
     float mono[B];
     memset(mono, 0, sizeof(mono));
@@ -827,17 +838,20 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
         float nz[B];
         float env = str->noise_env;
         const float nd = str->noise_decay, ns = str->noise_scale, no = str->noise_out;
-        float prev = str->noise_prev;
+        float prev = str->noise_prev, y = str->noise_y;
+        const float lp = str->noise_lp;
         uint32_t seed = str->noise_seed;
         for (int k = 0; k < B; ++k) {
             const float n = noise_next(&seed) * env;
             nz[k] = n * ns;
-            mono[k] = (n - prev) * no; // Direct: first difference = high pass
+            y += lp * ((n - prev) - y);  // Direct: first difference (high pass), then low pass
+            mono[k] = y * no;
             prev = n;
             env *= nd;
         }
         str->noise_seed = seed;
         str->noise_prev = prev;
+        str->noise_y = y;
         // Stop 40 dB down: the springs have taken in nearly all of the
         // burst, and what is left of it is far below the springs' ringing
         str->noise_env = env < 1e-2f ? 0.0f : env;

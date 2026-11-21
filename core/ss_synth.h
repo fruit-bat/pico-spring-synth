@@ -120,6 +120,8 @@ typedef struct {
     float noise_scale;      // Excitation scale for the burst
     float noise_out;        // Direct noise level
     float noise_prev;       // High pass state
+    float noise_lp;         // Low pass coefficient (cutoff follows the note)
+    float noise_y;          // Low pass state
     uint32_t noise_seed;
     float energy;           // Sum of |z|^2 over the springs, last block
 } SsString;
