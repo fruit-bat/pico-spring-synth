@@ -85,6 +85,15 @@ pass and knock, decaying the same way. Like a real piano it is tuned stretched
 towards the top (+13 cents at C7, +30 at C8, as measured on FluidR3's
 grand), with string stiffness to match, so octaves stay beat free.
 
+The harpsichord is plucked near the end of the string, so it stays bright
+with about equal energy per octave up to 4-8 kHz. Its 20 springs are
+harmonics 1-8 and then sparser ones up to the 64th, each standing for its
+neighbours. A rasp (the string's output through a gentle cubic curve,
+scaled to the note so it fades with it) fills in the harmonics between them.
+Products of harmonics are harmonics, so it adds nothing out of tune. As with
+a real quill, the string sounds 5 ms after the key, with a quiet bright
+scrape before it.
+
 Partials more than 50 dB below a string's strongest are dropped, so the
 upper ones cost little once the attack has passed.
 

@@ -122,7 +122,8 @@ const SsPatch ss_patches[] = {
     // standing for its neighbours, so even the bass reaches the highs with
     // 20 springs. Exact harmonics only (no stiffness), so it stays in tune.
     // The rasp fills in the harmonics between the sparse ones (the buzz of
-    // the quill), at about 30 dB below the strongest.
+    // the quill), at about 30 dB below the strongest. The quill holds the
+    // string for 5 ms before it slips off, with a quiet bright scrape.
     [HARPSI] = {
         .name = "harpsichord", .count = 20,
         .p = { P(1, 0.800f, 6.00f, 0), P(2, 0.701f, 3.96f, 0), P(3, 0.631f, 3.10f, 0), P(4, 0.602f, 2.61f, 0),
