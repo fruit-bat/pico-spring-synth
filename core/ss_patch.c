@@ -37,7 +37,7 @@ enum {
 };
 
 const SsPatch ss_patches[] = {
-    // The piano is four patches blended by key: A up to C4, B at C5, the
+    // The piano is four patches blended by key: A up to F3, B from F4, the
     // high patch from G5 to C6 and the top patch from C7, interpolated per
     // key in between. It is
     // tuned stretched like a real piano (+13 cents at C7, +30 at C8), with
@@ -61,7 +61,7 @@ const SsPatch ss_patches[] = {
         .inharm = .0001f, .cutoff_hz = 5000, .cutoff_vel = 1.0f, .body_hz = 60,
         .noise = .08f, .noise_out = .02f, .noise_ms = 2, .knock = .15f, .knock_hz = 250, .knock_ms = 25,
         .pan_spread = .6f, .stretch = 3.3f, .stretch_key = 72,
-        .upper = &ss_patches[PIANO_UPPER], .blend_lo = 60, .blend_hi = 72,
+        .upper = &ss_patches[PIANO_UPPER], .blend_lo = 53, .blend_hi = 65,
     },
     // B, the upper piano: the original 8 partial piano (in A's slots,
     // the partials it lacks at level 0) with its decay eased so the treble
