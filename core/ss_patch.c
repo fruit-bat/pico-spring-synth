@@ -116,12 +116,22 @@ const SsPatch ss_patches[] = {
         .gain = .61f, .decay_track = .7f, .restrike_damp = .5f, .release = .2f, .tilt = .4f, .vel_curve = 1.5f, .bright = 1.6f,
         .pan_spread = .5f,
     },
+    // Harpsichord: plucked near the end of the string (1/8), so the
+    // spectrum stays bright with about equal energy per octave up to 4-8 kHz.
+    // Harmonics 1-8 one by one, then sparser (10-16, 20-32, 40-64), each
+    // standing for its neighbours, so even the bass reaches the highs with
+    // 20 springs. Exact harmonics only (no stiffness), so it stays in tune.
+    // The rasp fills in the harmonics between the sparse ones (the buzz of
+    // the quill), at about 30 dB below the strongest.
     [HARPSI] = {
-        .name = "harpsichord", .count = 8,
-        .p = { P(1, .7f, 3, 0), P(2, -.75f, 2.5f, 0), P(3, .6f, 2, 0), P(4, -.55f, 1.6f, 0),
-               P(5, .45f, 1.3f, 0), P(6, -.4f, 1.1f, 0), P(7, .35f, .9f, 0), P(8, -.3f, .8f, 0) },
-        .gain = .25f, .decay_track = .8f, .restrike_damp = .85f, .release = .12f, .tilt = .3f, .vel_curve = .6f, .bright = .1f,
-        .noise = .05f, .noise_out = .03f, .noise_ms = 1.5f, .pan_spread = .5f,
+        .name = "harpsichord", .count = 20,
+        .p = { P(1, 0.800f, 6.00f, 0), P(2, 0.701f, 3.96f, 0), P(3, 0.631f, 3.10f, 0), P(4, 0.602f, 2.61f, 0),
+               P(5, 0.514f, 2.28f, 0), P(6, 0.380f, 2.05f, 0), P(7, 0.220f, 1.87f, 0), P(8, 0.053f, 1.72f, 0),
+               P(10, 0.346f, 1.51f, 0), P(12, -0.315f, 1.35f, 0), P(14, 0.292f, 1.23f, 0), P(16, -0.273f, 1.14f, 0),
+               P(20, 0.346f, 0.99f, 0), P(24, -0.315f, 0.89f, 0), P(28, 0.292f, 0.81f, 0), P(32, -0.273f, 0.75f, 0),
+               P(40, 0.346f, 0.66f, 0), P(48, -0.315f, 0.59f, 0), P(56, 0.292f, 0.54f, 0), P(64, -0.273f, 0.49f, 0) },
+        .gain = .25f, .decay_track = .45f, .restrike_damp = .85f, .release = .12f, .tilt = .1f, .vel_curve = .6f, .bright = .1f,
+        .cutoff_hz = 9000, .rasp = .2f, .noise = .05f, .noise_out = .03f, .noise_ms = 1.5f, .pan_spread = .5f,
     },
     [CLAV] = {
         .name = "clavinet", .count = 8,

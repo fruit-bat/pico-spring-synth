@@ -265,6 +265,10 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
         sp->im -= pluck; // Velocity impulse: im = -v / omega
         str->energy += pluck * pluck + drive_amp * drive_amp;
     }
+    str->rasp = pt->rasp;
+    // The cubic adds power: for a noise like signal the mean square grows
+    // by 1 + 6 r + 15 r^2. Divided out so the rasp keeps the level.
+    str->rasp_g = pt->rasp != 0.0f ? 1.0f / sqrtf(1.0f + 6.0f * pt->rasp + 15.0f * pt->rasp * pt->rasp) : 1.0f;
 
     if (pt->noise > 0.0f || pt->noise_out > 0.0f) {
         str->noise_env = v;
@@ -459,7 +463,7 @@ static const SsPatch *SS_RAM_FUNC(patch_at_key)(const SsPatch *pt, uint8_t key, 
     *tmp = *pt;
     LERP(gain); LERP(decay_track); LERP(release); LERP(restrike_damp); LERP(tilt); LERP(vel_curve);
     LERP(bright); LERP(inharm); LERP(inharm_track); LERP(cutoff_hz); LERP(cutoff_vel); LERP(body_hz);
-    LERP(noise); LERP(noise_out); LERP(noise_ms); LERP(knock); LERP(knock_hz); LERP(knock_ms);
+    LERP(noise); LERP(noise_out); LERP(noise_ms); LERP(knock); LERP(knock_hz); LERP(knock_ms); LERP(rasp);
     LERP(vibrato); LERP(vib_rate); LERP(vib_delay); LERP(pan_spread); LERP(stretch);
     for (uint32_t j = 0; j < pt->count; ++j) {
         LERP(p[j].ratio); LERP(p[j].gain); LERP(p[j].t60); LERP(p[j].drive);
@@ -924,6 +928,17 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
         render_springs(str, mono, ns != 0.0f ? nz : NULL);
     } else {
         render_springs(str, mono, NULL);
+    }
+    if (str->rasp != 0.0f && str->energy > 0.0f) {
+        // The rasp: y + k y^3, with k set from the string's mean square
+        // (half its spring energy, last block), so the buzz keeps its
+        // share as the note decays. Products of harmonics are harmonics,
+        // so it fills in the spectrum between the partials, in tune.
+        const float rk = str->rasp * 2.0f / str->energy, g = str->rasp_g;
+        for (int k = 0; k < B; ++k) {
+            const float m = mono[k];
+            mono[k] = g * (m + rk * m * m * m);
+        }
     }
     if (str->knock_env > 0.0f) {
         // The knock: noise through two one pole low passes, decaying

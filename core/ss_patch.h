@@ -72,6 +72,9 @@ typedef struct SsPatch {
                                 // note: the case and soundboard of a piano); amplitude, 0 = none
     float knock_hz;             // Its low pass corner (Hz)
     float knock_ms;             // Its decay time constant (ms)
+    float rasp;                 // Buzz: the string's output through a cubic curve, scaled to
+                                // the strike, so it fades with the note. Only makes harmonics
+                                // of harmonic partials (a plucked quill's rasp); 0 = none
     float glide;                // Pitch starts at this ratio and slides to 1 (0 or 1 = none)
     float glide_ms;             // Glide time constant (ms)
     float vibrato;              // Built-in vibrato depth (cents), added to the mod wheel's
