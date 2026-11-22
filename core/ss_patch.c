@@ -24,7 +24,7 @@
 #define P(r, g, t, d) { (r), (g), (t), (d) }
 
 enum {
-    PIANO, PIANO_UPPER, PIANO_TOP, EPIANO, HARPSI, CLAV, MALLET, MARIMBA, BELL,
+    PIANO, PIANO_UPPER, PIANO_HIGH, PIANO_TOP, EPIANO, HARPSI, CLAV, MALLET, MARIMBA, BELL,
     ORGAN, CHURCH, ACCORDION,
     NYLON, STEEL, MUTED, OVERDRIVE,
     BASS, SYNBASS,
@@ -37,8 +37,9 @@ enum {
 };
 
 const SsPatch ss_patches[] = {
-    // The piano is three patches blended by key: A up to C4, B at C5 and
-    // the top patch from C7, interpolated per key in between. It is
+    // The piano is four patches blended by key: A up to C4, B at C5, the
+    // high patch from G5 to C6 and the top patch from C7, interpolated per
+    // key in between. It is
     // tuned stretched like a real piano (+13 cents at C7, +30 at C8), with
     // string stiffness in B and the top patch to match, so octaves agree.
     //
@@ -75,7 +76,22 @@ const SsPatch ss_patches[] = {
                P(11, 0, 1, 0), P(12, 0, 1, 0), P(13, 0, 1, 0), P(14, 0, 1, 0) },
         .gain = .28f, .decay_track = .5f, .restrike_damp = .6f, .release = .25f, .tilt = .25f, .vel_curve = 1.6f, .bright = 1.0f,
         .inharm = .00057f, .inharm_track = 1.16f, .noise = .08f, .noise_out = .02f, .noise_ms = 2, .pan_spread = .6f, .stretch = 3.3f, .stretch_key = 72,
-        .upper = &ss_patches[PIANO_TOP], .blend_lo = 72, .blend_hi = 96,
+        .upper = &ss_patches[PIANO_HIGH], .blend_lo = 72, .blend_hi = 79,
+    },
+    // G5 to C6: B's harmonics with a two stage decay, as in the top
+    // octave: most of the sound dies within about 0.3 s (the fast unison
+    // partners), leaving a quiet tail (the 1st and 4th springs)
+    [PIANO_HIGH] = {
+        .name = "piano (high)", .count = 16,
+        .p = { P(1, .18f, 8, 0), P(1.0009f, 1.0f, 1.0f, 0), P(2, 1.4f, .8f, 0), P(2.0019f, .15f, 4, 0),
+               P(3, 1.3f, .6f, 0), P(4, 1.0f, .5f, 0), P(5, .7f, .45f, 0), P(6, .45f, .4f, 0),
+               P(7, 0, 1, 0), P(8, -.25f, .3f, 0), P(9, 0, 1, 0), P(10, 0, 1, 0),
+               P(11, 0, 1, 0), P(12, 0, 1, 0), P(13, 0, 1, 0), P(14, 0, 1, 0) },
+        .gain = .28f, .decay_track = .35f, .restrike_damp = .6f, .release = .25f, .tilt = .25f, .vel_curve = 1.6f, .bright = 1.0f,
+        .inharm = .00057f, .inharm_track = 1.16f,
+        .noise = .08f, .noise_out = .02f, .noise_ms = 2, .knock = .2f, .knock_hz = 1200, .knock_ms = 12,
+        .pan_spread = .6f, .stretch = 3.3f, .stretch_key = 72,
+        .upper = &ss_patches[PIANO_TOP], .blend_lo = 84, .blend_hi = 96,
     },
     // The top octave: nearly a pure fundamental (the upper partials of the
     // short treble strings are weak and soon gone) and a hammer low pass.

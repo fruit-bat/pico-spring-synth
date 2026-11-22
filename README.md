@@ -73,14 +73,15 @@ kick, snare, toms, hats with choke, cymbals, hand percussion...). Patch levels
 are calibrated against FluidSynth with a GM SoundFont, so GM files keep their
 balance between instruments.
 
-The piano is three patches blended per key, so there is no seam: up to C4 a
+The piano is four patches blended per key, so there is no seam: up to C4 a
 fitted patch (16 consecutive partials from the hammer's strike position,
 unison pairs that beat and give the two-stage decay, a velocity-dependent
 hammer filter, a soundboard filter that weakens the bass fundamental, decay
 set by each partial's frequency and an unpitched knock for the case); at
-C5 the original 8-partial piano; and in the top octave a nearly pure
-fundamental with a hammer low pass and knock, most of which dies within
-0.2 s, leaving a quiet tail. Like a real piano it is tuned stretched
+C5 the original 8-partial piano; from G5 to C6 the same harmonics with a
+two-stage decay (most of the sound dies within 0.3 s, leaving a quiet
+tail); and in the top octave a nearly pure fundamental with a hammer low
+pass and knock, decaying the same way. Like a real piano it is tuned stretched
 towards the top (+13 cents at C7, +30 at C8, as measured on FluidR3's
 grand), with string stiffness to match, so octaves stay beat free.
 
