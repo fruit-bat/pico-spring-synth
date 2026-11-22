@@ -100,11 +100,11 @@ const SsPatch ss_patches[] = {
     // and a weak damper (the top strings of a piano have none).
     [PIANO_TOP] = {
         .name = "piano (top)", .count = 16,
-        .p = { P(1, .12f, 8, 0), P(1.0009f, 1.0f, .8f, 0), P(2, .35f, 1.0f, 0), P(2.0019f, 0, 2, 0),
+        .p = { P(1, .1f, 5, 0), P(1.0009f, 1.0f, .8f, 0), P(2, .35f, 1.0f, 0), P(2.0019f, 0, 2, 0),
                P(3, .25f, .8f, 0), P(4, .12f, .7f, 0), P(5, .06f, .6f, 0), P(6, .03f, .5f, 0),
                P(7, 0, 1, 0), P(8, 0, 1, 0), P(9, 0, 1, 0), P(10, 0, 1, 0),
                P(11, 0, 1, 0), P(12, 0, 1, 0), P(13, 0, 1, 0), P(14, 0, 1, 0) },
-        .gain = .28f, .decay_track = .35f, .restrike_damp = .6f, .release = 3.0f, .tilt = .25f, .vel_curve = 1.6f, .bright = 1.0f,
+        .gain = .28f, .decay_track = .45f, .restrike_damp = .6f, .release = 3.0f, .tilt = .25f, .vel_curve = 1.6f, .bright = 1.0f,
         .inharm = .00057f, .inharm_track = 1.16f, .cutoff_hz = 6000, .cutoff_vel = .5f,
         .noise = .08f, .noise_out = .02f, .noise_ms = 2, .knock = .6f, .knock_hz = 1500, .knock_ms = 10,
         .pan_spread = .6f, .stretch = 3.3f, .stretch_key = 72,
