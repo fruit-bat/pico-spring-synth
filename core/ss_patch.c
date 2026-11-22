@@ -117,20 +117,23 @@ const SsPatch ss_patches[] = {
         .pan_spread = .5f,
     },
     // Harpsichord: plucked near the end of the string (1/8), so the
-    // spectrum stays bright with about equal energy per octave up to 4-8 kHz.
-    // Harmonics 1-8 one by one, then sparser (10-16, 20-32, 40-64), each
-    // standing for its neighbours, so even the bass reaches the highs with
-    // 20 springs. Exact harmonics only (no stiffness), so it stays in tune.
+    // spectrum stays bright with about equal energy per octave up to 8 kHz.
+    // Harmonics 1-8 one by one, then sparser (10-16, 20-32, 40-64, 80-128,
+    // the last raised to match a real bass string's highs), each standing
+    // for its neighbours, so even the bass reaches the highs with 24
+    // springs. Exact harmonics only (no stiffness), so it stays in tune.
     // The rasp fills in the harmonics between the sparse ones (the buzz of
     // the quill), at about 30 dB below the strongest. The quill holds the
     // string for 5 ms before it slips off, with a quiet bright scrape.
     [HARPSI] = {
-        .name = "harpsichord", .count = 20,
-        .p = { P(1, 0.800f, 6.00f, 0), P(2, 0.701f, 3.96f, 0), P(3, 0.631f, 3.10f, 0), P(4, 0.602f, 2.61f, 0),
-               P(5, 0.514f, 2.28f, 0), P(6, 0.380f, 2.05f, 0), P(7, 0.220f, 1.87f, 0), P(8, 0.053f, 1.72f, 0),
-               P(10, 0.346f, 1.51f, 0), P(12, -0.315f, 1.35f, 0), P(14, 0.292f, 1.23f, 0), P(16, -0.273f, 1.14f, 0),
-               P(20, 0.346f, 0.99f, 0), P(24, -0.315f, 0.89f, 0), P(28, 0.292f, 0.81f, 0), P(32, -0.273f, 0.75f, 0),
-               P(40, 0.346f, 0.66f, 0), P(48, -0.315f, 0.59f, 0), P(56, 0.292f, 0.54f, 0), P(64, -0.273f, 0.49f, 0) },
+        .name = "harpsichord", .count = 24,
+        .p = {
+            P(1, 0.800f, 6.00f, 0), P(2, 0.701f, 3.96f, 0), P(3, 0.631f, 3.10f, 0), P(4, 0.602f, 2.61f, 0),
+            P(5, 0.514f, 2.28f, 0), P(6, 0.380f, 2.05f, 0), P(7, 0.220f, 1.87f, 0), P(8, 0.053f, 1.72f, 0),
+            P(10, 0.346f, 1.51f, 0), P(12, -0.315f, 1.35f, 0), P(14, 0.292f, 1.23f, 0), P(16, -0.273f, 1.14f, 0),
+            P(20, 0.346f, 0.99f, 0), P(24, -0.315f, 0.89f, 0), P(28, 0.292f, 0.81f, 0), P(32, -0.273f, 0.75f, 0),
+            P(40, 0.346f, 0.66f, 0), P(48, -0.315f, 0.59f, 0), P(56, 0.292f, 0.54f, 0), P(64, -0.273f, 0.49f, 0),
+            P(80,0.554f,0.43f,0), P(96,-0.504f,0.39f,0), P(112,0.467f,0.35f,0), P(128,-0.437f,0.33f,0) },
         .gain = .25f, .decay_track = .45f, .restrike_damp = .85f, .release = .12f, .tilt = .1f, .vel_curve = .6f, .bright = .1f,
         .cutoff_hz = 9000, .rasp = .2f, .quill_ms = 5.0f, .quill = 0.2f, .noise = .05f, .noise_out = .03f, .noise_ms = 1.5f, .pan_spread = .5f,
     },

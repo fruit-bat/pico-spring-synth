@@ -37,7 +37,7 @@
 
 // Most partials (damped springs) one string may have
 #ifndef SS_MAX_PARTIALS
-#define SS_MAX_PARTIALS 20
+#define SS_MAX_PARTIALS 28
 #endif
 
 // The CPU budget: partials + SS_STRING_COST x strings, over all strings
