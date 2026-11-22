@@ -191,7 +191,10 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
     const float noise_samples = (pt->noise_ms > 0.0f ? pt->noise_ms : 1.0f) * 0.001f * fs;
     uint32_t added = 0;
     // Stiffness, hammer and soundboard filters (piano), on absolute frequency
+    // Stiffness sharpens partial n by sqrt(1 + B n^2); divided by the
+    // fundamental's own sqrt(1 + B), so the note stays at its tuned pitch
     const float inharm = pt->inharm > 0.0f ? pt->inharm * ss_exp2f(oct * pt->inharm_track) : 0.0f;
+    const float inharm_norm = 1.0f / sqrtf(1.0f + inharm);
     const float inv_fc = pt->cutoff_hz > 0.0f ? 1.0f / (pt->cutoff_hz * ss_exp2f(lv * pt->cutoff_vel)) : 0.0f;
     const float inv_fb = pt->body_hz > 0.0f ? 1.0f / pt->body_hz : 0.0f;
 
@@ -214,7 +217,7 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
         const SsPartial *pp = &pt->p[j];
         const bool fixed = pp->ratio < 0.0f;
         float ratio = fixed ? -pp->ratio / freq : pp->ratio;
-        if (inharm > 0.0f && !fixed) ratio *= sqrtf(1.0f + inharm * ratio * ratio);
+        if (inharm > 0.0f && !fixed) ratio *= sqrtf(1.0f + inharm * ratio * ratio) * inharm_norm;
         const float w = TWO_PI * freq * ratio / fs;
         if (w > w_max || w <= 0.0f) continue; // Inaudible or would alias (or nonsense)
         // Brighter with velocity: octaves above the fundamental lose
@@ -445,8 +448,10 @@ static void SS_RAM_FUNC(choke_group)(SsSynth *s, uint8_t chan, uint8_t group, co
 
 // The patch a key actually plays: pt itself, its upper patch, or (between
 // blend_lo and blend_hi) a per-key interpolation of the two, built in *tmp.
+// Upper patches can chain (an upper patch with its own upper).
 static const SsPatch *SS_RAM_FUNC(patch_at_key)(const SsPatch *pt, uint8_t key, SsPatch *tmp) {
     const SsPatch *up = pt->upper;
+    while (up && key >= pt->blend_hi) { pt = up; up = pt->upper; }
     if (!up || key <= pt->blend_lo) return pt;
     if (key >= pt->blend_hi) return up;
     const float w = (float)(key - pt->blend_lo) / (float)(pt->blend_hi - pt->blend_lo);
@@ -455,7 +460,7 @@ static const SsPatch *SS_RAM_FUNC(patch_at_key)(const SsPatch *pt, uint8_t key, 
     LERP(gain); LERP(decay_track); LERP(release); LERP(restrike_damp); LERP(tilt); LERP(vel_curve);
     LERP(bright); LERP(inharm); LERP(inharm_track); LERP(cutoff_hz); LERP(cutoff_vel); LERP(body_hz);
     LERP(noise); LERP(noise_out); LERP(noise_ms); LERP(knock); LERP(knock_hz); LERP(knock_ms);
-    LERP(vibrato); LERP(vib_rate); LERP(vib_delay); LERP(pan_spread);
+    LERP(vibrato); LERP(vib_rate); LERP(vib_delay); LERP(pan_spread); LERP(stretch);
     for (uint32_t j = 0; j < pt->count; ++j) {
         LERP(p[j].ratio); LERP(p[j].gain); LERP(p[j].t60); LERP(p[j].drive);
     }
@@ -474,10 +479,16 @@ static const SsPatch *SS_RAM_FUNC(patch_at_key)(const SsPatch *pt, uint8_t key, 
 void SS_RAM_FUNC(ss_synth_note_on_patch)(SsSynth *s, uint8_t chan, uint8_t key, uint8_t vel,
                                          const SsPatch *pt, float hz, float pan, uint8_t group) {
     if (chan >= SS_MIDI_CHANNELS || key > 127 || !pt || vel == 0) return;
-    const float freq = hz > 0.0f ? hz : 440.0f * ss_exp2f(((float)key - 69.0f) * (1.0f / 12.0f));
     // What this key plays (pt still identifies the string's patch)
     SsPatch blend;
     const SsPatch *xp = patch_at_key(pt, key, &blend);
+    // Equal temperament, sharpened above stretch_key if the patch says so
+    float semis = (float)key - 69.0f;
+    if (xp->stretch != 0.0f && key > xp->stretch_key) {
+        const float o = ((float)key - (float)xp->stretch_key) * (1.0f / 12.0f);
+        semis += xp->stretch * o * o * 0.01f;
+    }
+    const float freq = hz > 0.0f ? hz : 440.0f * ss_exp2f(semis * (1.0f / 12.0f));
 
     SsString *str = NULL;
     const uint8_t mapped = s->key_string[chan][key];

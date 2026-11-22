@@ -79,6 +79,10 @@ typedef struct SsPatch {
     float vib_delay;            // Vibrato fades in over this time (s)
     float pan_spread;           // Low keys left, high keys right: 0..1
     float hz;                   // Fixed pitch (drums); 0 = from the key
+    // Stretched tuning, as pianos are tuned: keys above stretch_key are
+    // sharpened by stretch x (octaves above it)^2 cents. 0 = equal temperament
+    float stretch;
+    uint8_t stretch_key;
     // Blend into another patch towards the top: below key blend_lo this
     // patch sounds, above blend_hi `upper` does, and in between every
     // number (partial levels and decays, filters, gain...) is interpolated

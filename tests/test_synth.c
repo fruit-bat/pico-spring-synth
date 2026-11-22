@@ -191,6 +191,38 @@ TEST(key_blend) {
     CHECK_EQ(synth.stats.restrikes, 1);
 }
 
+// Angular frequency (radians per sample) of a key's partial j
+static float spring_w(const SsPatch *pt, uint8_t key, uint32_t j) {
+    setup();
+    ss_synth_note_on_patch(&synth, 0, key, 100, pt, 0, 0, 0);
+    const SsString *x = &synth.strings[synth.key_string[0][key] - 1];
+    for (uint32_t i = 0; i < x->count; ++i) if (x->sp[i].idx == j) return x->sp[i].w;
+    return 0.0f;
+}
+
+TEST(stretched_tuning_and_stiffness) {
+    const float two_pi_over_fs = 6.2831853f / 44100.0f;
+    // Equal temperament up to stretch_key, then stretch x octaves^2 cents
+    SsPatch p = sine(0.1f, 2.0f, 0);
+    p.stretch = 4.0f;
+    p.stretch_key = 72;
+    const float c6 = 440.0f * powf(2.0f, 15.0f / 12.0f), c8 = 440.0f * powf(2.0f, 39.0f / 12.0f);
+    CHECK_NEAR(spring_w(&p, 84, 0) / (two_pi_over_fs * c6), powf(2.0f, 4.0f / 1200.0f), 2e-5);
+    CHECK_NEAR(spring_w(&p, 108, 0) / (two_pi_over_fs * c8), powf(2.0f, 36.0f / 1200.0f), 2e-5);
+    CHECK_NEAR(spring_w(&p, 72, 0) / (two_pi_over_fs * c6 * 0.5f), 1.0f, 2e-5);
+    // Stiffness sharpens the overtones but leaves the fundamental in tune
+    SsPatch q = sine(0.1f, 2.0f, 0);
+    q.count = 2;
+    q.p[1] = (SsPartial){ 2.0f, 0.5f, 2.0f, 0 };
+    q.inharm = 0.002f;
+    const float w1 = spring_w(&q, 60, 0), w2 = spring_w(&q, 60, 1);
+    CHECK_NEAR(w1 / (two_pi_over_fs * 261.6256f), 1.0f, 2e-5);
+    CHECK_NEAR(w2 / w1, 2.0f * sqrtf((1.0f + 4.0f * 0.002f) / (1.0f + 0.002f)), 2e-5);
+    // The piano's blend chains to a third patch at the top
+    const SsPatch *piano = &ss_patches[ss_gm_patch[0]];
+    CHECK(piano->upper && piano->upper->upper);
+}
+
 TEST(steals_the_quietest) {
     setup();
     const SsPatch p = sine(0.1f, 30.0f, 0);
@@ -398,6 +430,7 @@ int main(void) {
     RUN(partials_above_nyquist_are_left_out);
     RUN(fixed_frequency_partials);
     RUN(key_blend);
+    RUN(stretched_tuning_and_stiffness);
     RUN(steals_the_quietest);
     RUN(cost_budget);
     RUN(sustain_pedal);

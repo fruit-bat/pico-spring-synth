@@ -43,7 +43,7 @@ A spring can be excited in three ways (see `core/ss_patch.h`):
 
 ### Strings and allocation
 
-A **string** is what one key of one channel sounds: up to 8 springs. Strings
+A **string** is what one key of one channel sounds: up to 20 springs. Strings
 come from a pool, found by channel and key:
 
 - **Striking a key that is still ringing** (even after note off) excites the same
@@ -73,18 +73,16 @@ kick, snare, toms, hats with choke, cymbals, hand percussion...). Patch levels
 are calibrated against FluidSynth with a GM SoundFont, so GM files keep their
 balance between instruments.
 
-The piano was fitted note by note, A0 to C8, to a sampled grand (FluidR3).
-It uses up to 20 springs:
-
-- partials from the hammer's strike position, spaced sparsely above the 6th
-  harmonic, so bass notes keep their real energy up to about 3 kHz
-- unison pairs, which beat and give the two-stage decay
-- a velocity-dependent hammer filter, and a soundboard filter that weakens the
-  bass fundamental
-- decay set by each partial's frequency, and strings that stiffen towards the
-  treble
-- five fixed-frequency soundboard modes, which give every note the woody knock
-  of the case
+The piano is three patches blended per key, so there is no seam: up to C4 a
+fitted patch (16 consecutive partials from the hammer's strike position,
+unison pairs that beat and give the two-stage decay, a velocity-dependent
+hammer filter, a soundboard filter that weakens the bass fundamental, decay
+set by each partial's frequency and an unpitched knock for the case); at
+C5 the original 8-partial piano; and in the top octave a nearly pure
+fundamental with a hammer low pass and knock, most of which dies within
+0.2 s, leaving a quiet tail. Like a real piano it is tuned stretched
+towards the top (+13 cents at C7, +30 at C8, as measured on FluidR3's
+grand), with string stiffness to match, so octaves stay beat free.
 
 Partials more than 50 dB below a string's strongest are dropped, so the
 upper ones cost little once the attack has passed.

@@ -24,7 +24,7 @@
 #define P(r, g, t, d) { (r), (g), (t), (d) }
 
 enum {
-    PIANO, PIANO_UPPER, EPIANO, HARPSI, CLAV, MALLET, MARIMBA, BELL,
+    PIANO, PIANO_UPPER, PIANO_TOP, EPIANO, HARPSI, CLAV, MALLET, MARIMBA, BELL,
     ORGAN, CHURCH, ACCORDION,
     NYLON, STEEL, MUTED, OVERDRIVE,
     BASS, SYNBASS,
@@ -37,8 +37,10 @@ enum {
 };
 
 const SsPatch ss_patches[] = {
-    // The piano is two patches blended by key: A up to C4, B from C5 (you
-    // preferred A low and B high), interpolated per key in between.
+    // The piano is three patches blended by key: A up to C4, B at C5 and
+    // the top patch from C7, interpolated per key in between. It is
+    // tuned stretched like a real piano (+13 cents at C7, +30 at C8), with
+    // string stiffness in B and the top patch to match, so octaves agree.
     //
     // A: struck at 1/7 of the string, so partial n gets sin(n pi / 7) / n,
     // consecutive harmonics up to the 14th. Unison partners at 1 and 2 beat
@@ -57,11 +59,14 @@ const SsPatch ss_patches[] = {
         .gain = .2f, .decay_track = .5f, .restrike_damp = .6f, .release = .25f, .tilt = .2f, .vel_curve = 1.6f,
         .inharm = .0001f, .cutoff_hz = 5000, .cutoff_vel = 1.0f, .body_hz = 60,
         .noise = .08f, .noise_out = .02f, .noise_ms = 2, .knock = .15f, .knock_hz = 250, .knock_ms = 25,
-        .pan_spread = .6f, .upper = &ss_patches[PIANO_UPPER], .blend_lo = 60, .blend_hi = 72,
+        .pan_spread = .6f, .stretch = 3.3f, .stretch_key = 72,
+        .upper = &ss_patches[PIANO_UPPER], .blend_lo = 60, .blend_hi = 72,
     },
-    // B, the top of the piano: the original 8 partial piano (in A's slots,
+    // B, the upper piano: the original 8 partial piano (in A's slots,
     // the partials it lacks at level 0) with its decay eased so the treble
     // rings on (decay_track .8 -> .5). Not on a program of its own.
+    // Stiffness grows with pitch so that each note's 2nd partial meets the
+    // stretched octave above it (B 0.0013 at C5, 0.006 at C7).
     [PIANO_UPPER] = {
         .name = "piano (upper)", .count = 16,
         .p = { P(1, .55f, 7, 0), P(1.0009f, .45f, 3.5f, 0), P(2, .85f, 4, 0), P(2.0019f, 0, 2, 0),
@@ -69,7 +74,24 @@ const SsPatch ss_patches[] = {
                P(7, 0, 1.3f, 0), P(8, -.1f, 1.1f, 0), P(9, 0, 1, 0), P(10, 0, 1, 0),
                P(11, 0, 1, 0), P(12, 0, 1, 0), P(13, 0, 1, 0), P(14, 0, 1, 0) },
         .gain = .28f, .decay_track = .5f, .restrike_damp = .6f, .release = .25f, .tilt = .25f, .vel_curve = 1.6f, .bright = 1.0f,
-        .inharm = .0004f, .noise = .08f, .noise_out = .02f, .noise_ms = 2, .pan_spread = .6f,
+        .inharm = .00057f, .inharm_track = 1.16f, .noise = .08f, .noise_out = .02f, .noise_ms = 2, .pan_spread = .6f, .stretch = 3.3f, .stretch_key = 72,
+        .upper = &ss_patches[PIANO_TOP], .blend_lo = 72, .blend_hi = 96,
+    },
+    // The top octave: nearly a pure fundamental (the upper partials of the
+    // short treble strings are weak and soon gone) and a hammer low pass.
+    // Two stage decay: most of the sound dies within about 0.2 s, leaving
+    // a quiet long tail (the 1st spring). A bright knock for the hammer,
+    // and a weak damper (the top strings of a piano have none).
+    [PIANO_TOP] = {
+        .name = "piano (top)", .count = 16,
+        .p = { P(1, .12f, 8, 0), P(1.0009f, 1.0f, .8f, 0), P(2, .35f, 1.0f, 0), P(2.0019f, 0, 2, 0),
+               P(3, .25f, .8f, 0), P(4, .12f, .7f, 0), P(5, .06f, .6f, 0), P(6, .03f, .5f, 0),
+               P(7, 0, 1, 0), P(8, 0, 1, 0), P(9, 0, 1, 0), P(10, 0, 1, 0),
+               P(11, 0, 1, 0), P(12, 0, 1, 0), P(13, 0, 1, 0), P(14, 0, 1, 0) },
+        .gain = .28f, .decay_track = .35f, .restrike_damp = .6f, .release = 3.0f, .tilt = .25f, .vel_curve = 1.6f, .bright = 1.0f,
+        .inharm = .00057f, .inharm_track = 1.16f, .cutoff_hz = 6000, .cutoff_vel = .5f,
+        .noise = .08f, .noise_out = .02f, .noise_ms = 2, .knock = .6f, .knock_hz = 1500, .knock_ms = 10,
+        .pan_spread = .6f, .stretch = 3.3f, .stretch_key = 72,
     },
     [EPIANO] = {
         .name = "electric piano", .count = 6,
