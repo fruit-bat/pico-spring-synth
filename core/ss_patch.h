@@ -75,6 +75,10 @@ typedef struct SsPatch {
     float rasp;                 // Buzz: the string's output through a cubic curve, scaled to
                                 // the strike, so it fades with the note. Only makes harmonics
                                 // of harmonic partials (a plucked quill's rasp); 0 = none
+    float quill_ms;             // Pluck delay: the quill bends the string this long before it
+                                // slips off and the springs are struck (0 = at once)
+    float quill;                // Scrape heard over that delay: bright noise (first difference),
+                                // amplitude like a partial's gain; 0 = none
     float glide;                // Pitch starts at this ratio and slides to 1 (0 or 1 = none)
     float glide_ms;             // Glide time constant (ms)
     float vibrato;              // Built-in vibrato depth (cents), added to the mod wheel's

@@ -131,7 +131,7 @@ const SsPatch ss_patches[] = {
                P(20, 0.346f, 0.99f, 0), P(24, -0.315f, 0.89f, 0), P(28, 0.292f, 0.81f, 0), P(32, -0.273f, 0.75f, 0),
                P(40, 0.346f, 0.66f, 0), P(48, -0.315f, 0.59f, 0), P(56, 0.292f, 0.54f, 0), P(64, -0.273f, 0.49f, 0) },
         .gain = .25f, .decay_track = .45f, .restrike_damp = .85f, .release = .12f, .tilt = .1f, .vel_curve = .6f, .bright = .1f,
-        .cutoff_hz = 9000, .rasp = .2f, .noise = .05f, .noise_out = .03f, .noise_ms = 1.5f, .pan_spread = .5f,
+        .cutoff_hz = 9000, .rasp = .2f, .quill_ms = 5.0f, .quill = 0.2f, .noise = .05f, .noise_out = .03f, .noise_ms = 1.5f, .pan_spread = .5f,
     },
     [CLAV] = {
         .name = "clavinet", .count = 8,

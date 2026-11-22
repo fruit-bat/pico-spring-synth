@@ -129,6 +129,10 @@ typedef struct {
     float knock_y1, knock_y2;   // Low pass state
     float rasp;             // The patch's rasp (0 = none)
     float rasp_g;           // Level correction for it
+    uint8_t pend_blocks;    // Blocks until the pending pluck lands (0 = none pending)
+    float pend[SS_MAX_PARTIALS];    // Pending pluck per spring slot (added to im)
+    float quill_amp;        // Scrape level while the pluck is pending
+    float quill_prev;       // Its first difference state
     uint32_t noise_seed;
     float energy;           // Sum of |z|^2 over the springs, last block
 } SsString;

@@ -202,6 +202,15 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
     // the motion it meets. Like the strike itself this is a force, so it
     // changes the velocity (im) and never the displacement (re): scaling
     // re as well would be a step in the waveform, a click.
+    if (str->pend_blocks) {
+        // Struck again before the last pluck landed: it lands now
+        for (uint32_t i = 0; i < str->count; ++i) str->sp[i].im += str->pend[i];
+        str->pend_blocks = 0;
+    }
+    // The quill: the pluck is held back (pend[], per spring slot) until it
+    // slips off the string; culling waits for it
+    const uint32_t quill_blocks = pt->quill_ms > 0.0f ? (uint32_t)(pt->quill_ms * 0.001f * fs / (float)B + 0.5f) : 0;
+    if (quill_blocks) memset(str->pend, 0, sizeof(str->pend));
     if (pt->restrike_damp > 0.0f) {
         const float keep = 1.0f - pt->restrike_damp;
         float e = 0.0f;
@@ -262,10 +271,15 @@ static uint32_t SS_RAM_FUNC(string_excite)(SsSynth *s, SsString *str, const SsPa
         sp->r_rel = r_rel;
         sp->drive = drive;
         sp->exc = exc;
-        sp->im -= pluck; // Velocity impulse: im = -v / omega
+        if (quill_blocks) str->pend[sp - str->sp] = -pluck; // Lands when the quill lets go
+        else sp->im -= pluck; // Velocity impulse: im = -v / omega
         str->energy += pluck * pluck + drive_amp * drive_amp;
     }
     str->rasp = pt->rasp;
+    if (quill_blocks) {
+        str->pend_blocks = (uint8_t)(quill_blocks > 255 ? 255 : quill_blocks);
+        str->quill_amp = pt->quill * amp; // Follows velocity and the pitch tilt
+    }
     // The cubic adds power: for a noise like signal the mean square grows
     // by 1 + 6 r + 15 r^2. Divided out so the rasp keeps the level.
     str->rasp_g = pt->rasp != 0.0f ? 1.0f / sqrtf(1.0f + 6.0f * pt->rasp + 15.0f * pt->rasp * pt->rasp) : 1.0f;
@@ -318,6 +332,7 @@ static void SS_RAM_FUNC(string_damp)(SsString *str, float r) {
         if (p->r_rel > r) p->r_rel = r;
     }
     str->noise_env = 0.0f;
+    str->pend_blocks = 0;   // A pluck still pending never lands
     str->dirty = true;
 }
 
@@ -360,6 +375,7 @@ static void SS_RAM_FUNC(string_silence)(SsSynth *s, SsString *str) {
     str->last_l = str->last_r = 0.0f;
     str->count = 0;
     str->noise_env = 0.0f;
+    str->pend_blocks = 0;
     str->fade = 0;
     ++s->stats.cuts;
 }
@@ -384,6 +400,7 @@ static void SS_RAM_FUNC(string_kill)(SsSynth *s, uint32_t ai) {
     string_unmap(s, index);
     for (uint32_t i = 0; i < str->count; ++i) str->sp[i].drive = 0.0f;
     str->noise_env = 0.0f;
+    str->pend_blocks = 0;
     s->partials -= str->count;
     str->state = SS_STR_DYING;
     str->fade = SS_FADE_BLOCKS;
@@ -463,7 +480,7 @@ static const SsPatch *SS_RAM_FUNC(patch_at_key)(const SsPatch *pt, uint8_t key, 
     *tmp = *pt;
     LERP(gain); LERP(decay_track); LERP(release); LERP(restrike_damp); LERP(tilt); LERP(vel_curve);
     LERP(bright); LERP(inharm); LERP(inharm_track); LERP(cutoff_hz); LERP(cutoff_vel); LERP(body_hz);
-    LERP(noise); LERP(noise_out); LERP(noise_ms); LERP(knock); LERP(knock_hz); LERP(knock_ms); LERP(rasp);
+    LERP(noise); LERP(noise_out); LERP(noise_ms); LERP(knock); LERP(knock_hz); LERP(knock_ms); LERP(rasp); LERP(quill_ms); LERP(quill);
     LERP(vibrato); LERP(vib_rate); LERP(vib_delay); LERP(pan_spread); LERP(stretch);
     for (uint32_t j = 0; j < pt->count; ++j) {
         LERP(p[j].ratio); LERP(p[j].gain); LERP(p[j].t60); LERP(p[j].drive);
@@ -904,7 +921,18 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
     // 2. Springs (and the noise burst)
     float mono[B];
     memset(mono, 0, sizeof(mono));
-    if (str->noise_env > 0.0f) {
+    bool quill = false;
+    if (str->pend_blocks && --str->pend_blocks == 0) {
+        // The quill slips off: the pluck lands now. Its energy is added at
+        // once (the rasp is scaled by the energy, and the last block's,
+        // of springs at rest, would make its curve far too steep)
+        for (uint32_t i = 0; i < str->count; ++i) {
+            str->sp[i].im += str->pend[i];
+            str->energy += str->pend[i] * str->pend[i];
+        }
+    }
+    if (str->pend_blocks) quill = true;
+    if (str->noise_env > 0.0f && !quill) {
         float nz[B];
         float env = str->noise_env;
         const float nd = str->noise_decay, ns = str->noise_scale, no = str->noise_out;
@@ -939,6 +967,20 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
             const float m = mono[k];
             mono[k] = g * (m + rk * m * m * m);
         }
+    }
+    if (quill && str->quill_amp > 0.0f) {
+        // The scrape while the quill bends the string: differenced noise
+        // (after the rasp, which is scaled to the springs)
+        float prev = str->quill_prev;
+        const float a = str->quill_amp;
+        uint32_t seed = str->noise_seed;
+        for (int k = 0; k < B; ++k) {
+            const float n = noise_next(&seed);
+            mono[k] += a * (n - prev);
+            prev = n;
+        }
+        str->noise_seed = seed;
+        str->quill_prev = prev;
     }
     if (str->knock_env > 0.0f) {
         // The knock: noise through two one pole low passes, decaying
@@ -1009,7 +1051,7 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
     // strongest: the string masks it (this is what keeps the many quiet
     // upper partials of a piano note cheap once the attack has passed).
     float energy = 0.0f, loudest = 0.0f;
-    const bool bursting = str->noise_env > 0.0f && str->noise_scale != 0.0f;
+    const bool bursting = (str->noise_env > 0.0f && str->noise_scale != 0.0f) || str->pend_blocks;
     for (uint32_t i = 0; i < str->count; ++i) {
         const SsSpring *p = &str->sp[i];
         loudest = fmaxf(loudest, p->re * p->re + p->im * p->im);
@@ -1027,7 +1069,7 @@ static bool SS_RAM_FUNC(string_render)(SsString *str, const SsChannel *ch, const
     }
     str->energy = energy;
     if (str->state == SS_STR_DYING && str->fade == 0) return false; // Faded out
-    return str->count > 0 || str->noise_env > 0.0f || str->knock_env > 0.0f;
+    return str->count > 0 || str->noise_env > 0.0f || str->knock_env > 0.0f || str->pend_blocks;
 }
 
 // See ss_synth.h. Clears the buses and divides the strings between the
