@@ -1,0 +1,146 @@
+# Tests the core on the PC and builds the RP2350 firmware.
+#
+#   push / pull request   host tests (plain and with ASan + UBSan) and a UF2
+#                         per audio variant (run artifacts)
+#   tag v*                all of that, attached to a GitHub release
+#   Run workflow          the same, with your own board and cmake options
+#
+# Each firmware artifact carries the licences of the code linked into it
+# (this project, the Pico SDK and TinyUSB).
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      board:
+        description: 'PICO_BOARD (an RP2350 board in pico-sdk/src/boards)'
+        default: 'waveshare_rp2350_plus_16mb'
+      cmake:
+        description: 'Extra cmake options, e.g. -DSS_SYS_CLOCK_KHZ=250000 -DSS_MIDI_UART_RX_PIN=1'
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  PICO_SDK_VERSION: '2.3.0'
+  PICOTOOL_VERSION: '2.3.0'
+
+jobs:
+  host:
+    name: Host tests (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: plain
+            options: ''
+          - name: sanitizers
+            options: '-DSS_SANITIZE=ON'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cmake -S host -B build-host ${{ matrix.options }}
+          cmake --build build-host -j "$(nproc)"
+      - name: Test
+        run: ctest --test-dir build-host --output-on-failure
+
+  firmware:
+    name: Firmware (${{ matrix.variant }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: pico-audio
+            options: '-DSS_PICO_AUDIO=ON'
+          - variant: pico-audio-v21
+            options: '-DSS_PICO_AUDIO_V21=ON'
+          - variant: i2s
+            options: '-DSS_AUDIO_OUT=I2S'
+          - variant: pwm
+            options: '-DSS_AUDIO_OUT=PWM'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib libusb-1.0-0-dev pkg-config
+
+      - name: Cache pico-sdk and picotool
+        id: cache-sdk
+        uses: actions/cache@v4
+        with:
+          path: ~/pico
+          key: pico-sdk-${{ env.PICO_SDK_VERSION }}-picotool-${{ env.PICOTOOL_VERSION }}-ubuntu-24.04
+
+      - name: Get pico-sdk and build picotool
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$PICO_SDK_VERSION" https://github.com/raspberrypi/pico-sdk ~/pico/pico-sdk
+          git -C ~/pico/pico-sdk submodule update --init --depth 1 lib/tinyusb
+          git clone --depth 1 --branch "$PICOTOOL_VERSION" https://github.com/raspberrypi/picotool ~/pico/picotool-src
+          cmake -S ~/pico/picotool-src -B ~/pico/picotool-build -DPICO_SDK_PATH=$HOME/pico/pico-sdk \
+            -DCMAKE_INSTALL_PREFIX=$HOME/pico/picotool -DCMAKE_BUILD_TYPE=Release
+          cmake --build ~/pico/picotool-build -j "$(nproc)"
+          cmake --install ~/pico/picotool-build
+          rm -rf ~/pico/picotool-src ~/pico/picotool-build
+
+      - name: Build
+        env:
+          BOARD: ${{ inputs.board }}
+          CMAKE_EXTRA: ${{ inputs.cmake }}
+          VARIANT: ${{ matrix.variant }}
+          OPTIONS: ${{ matrix.options }}
+        run: |
+          export PICO_SDK_PATH=$HOME/pico/pico-sdk
+          export picotool_DIR=$HOME/pico/picotool/lib/cmake/picotool
+          args=($OPTIONS)
+          [ -n "$BOARD" ] && args+=(-DPICO_BOARD="$BOARD")
+          [ -n "$CMAKE_EXTRA" ] && args+=($CMAKE_EXTRA)
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "${args[@]}"
+          cmake --build build -j "$(nproc)"
+          mkdir -p out
+          cp build/pico_spring_synth.uf2 "out/pico_spring_synth-$VARIANT.uf2"
+
+      - name: Collect licences
+        run: |
+          mkdir -p out/licenses
+          cp LICENSE out/licenses/LICENSE-pico-spring-synth.txt
+          cp ~/pico/pico-sdk/LICENSE.TXT out/licenses/LICENSE-pico-sdk.txt
+          cp ~/pico/pico-sdk/lib/tinyusb/LICENSE out/licenses/LICENSE-tinyusb.txt
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.variant }}
+          path: out/
+          retention-days: 30
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [host, firmware]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          (cd dist && zip -r ../licenses.zip licenses)
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes \
+            dist/*.uf2 licenses.zip

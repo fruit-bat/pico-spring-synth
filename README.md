@@ -1,5 +1,7 @@
 # pico-spring-synth
 
+[![Build](https://github.com/fruit-bat/pico-spring-synth/actions/workflows/build.yml/badge.svg)](https://github.com/fruit-bat/pico-spring-synth/actions/workflows/build.yml)
+
 A General MIDI synthesizer for the RP2350 that makes every sound from banks of
 simulated damped springs. It grew from
 [java-spring-synth](https://github.com/fruit-bat/java-spring-synth), with the
@@ -165,6 +167,17 @@ and 48 per 150 MHz), `SS_DUAL_CORE` (ON), pin numbers below,
 `SS_DEMO_MIDI=/path/song.mid` to embed a song that plays at power up until
 MIDI input arrives, and `SS_BENCH=ON` to print render benchmarks at boot.
 
+### Ready-made firmware
+
+GitHub Actions (`.github/workflows/build.yml`) runs the host tests (plain and
+with the sanitizers) and builds a UF2 for each audio variant: `pico-audio`,
+`pico-audio-v21`, `i2s` and `pwm`, for the default board and pins. Each push
+and pull request leaves them as run artifacts. A `v*` tag also attaches them
+to a GitHub release. **Run workflow** on the Actions tab (also on a fork)
+builds for another `PICO_BOARD` or with extra cmake options, such as
+`-DSS_SYS_CLOCK_KHZ=250000`. The licences of the code linked into the
+firmware come with it, in `licenses/`.
+
 ### Performance
 
 Measured on an RP2350 at 150 MHz with `SS_BENCH`. A core has 3401 cycles per
@@ -226,3 +239,29 @@ The same SysEx as pico-fsynth, with the ID `7D 53 53` ("SS"):
   (`... 02 F7`) goes back to the defaults.
 - **Reset**: `host/reset.sh [-g]` silences everything and resets the controllers
   (`-g` also sends GM System On).
+
+## Credits
+
+pico-spring-synth is MIT licensed (`LICENSE`). It builds on, or learned from,
+the work of others:
+
+- **java-spring-synth** (https://github.com/fruit-bat/java-spring-synth), by
+  the same author. The spring synthesis idea, the drive and the patch that
+  bank 1 ("classic") replicates.
+- **pico-fsynth**, by the same author (MIT). The firmware plumbing: audio
+  output, MIDI input, settings, effects and the device SysEx.
+- **Freeverb** by Jezar at Dreampoint (public domain). The reverb's
+  structure, delay lengths and scale factors (`core/ss_effects.c`).
+- **Audio EQ Cookbook** by Robert Bristow-Johnson. The master EQ shelf
+  formulas.
+- **FluidSynth** (https://www.fluidsynth.org/, LGPL-2.1) and the
+  **FluidR3_GM** SoundFont by Frank Wen (MIT). The reference renders that
+  patch levels, effect levels and the piano's stretched tuning were matched
+  against. No FluidSynth code or SoundFont data is used.
+- **Raspberry Pi Pico SDK** and **picotool** (BSD-3-Clause,
+  https://github.com/raspberrypi/pico-sdk), including **TinyUSB** by Ha Thach
+  (MIT, https://github.com/hathach/tinyusb) for USB MIDI.
+  `pico_sdk_import.cmake` is copied from the Pico SDK under its licence.
+- **ALSA** and alsa-utils (`amidi`, `aplaymidi`, `aseqsend`) for the PC scripts.
+- Waveshare for the RP2350-Plus and Pico-Audio boards and their
+  documentation.
